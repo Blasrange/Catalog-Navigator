@@ -43,3 +43,9 @@ next-env.d.ts
 # firebase
 firebase-debug.log
 firestore-debug.log
+
+# git init
+# git remote add origin https://github.com/TU_USUARIO/catalog-navigator.git
+# git add .
+# git commit -m "Primer commit"
+# git push -u origin main
