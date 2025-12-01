@@ -23,33 +23,30 @@ export async function searchProduct(productId: string): Promise<SearchResult> {
     };
   }
 
-  return new Promise((resolve) => {
-    exec(`node ./rpa-salsify.js ${productId}`, (error, stdout, stderr) => {
-      if (error) {
-        resolve({ success: false, error: "Error al ejecutar el RPA." });
-        return;
-      }
-      try {
-        const data = JSON.parse(stdout);
-        const result: Product = {
-          nombreComercial: data.nombreComercial || "",
-          productName: data.nombre || productId || "Producto sin nombre",
-          productDescription:
-            data.descripcion || "Información extraída de Salsify",
-          imageUrl: data.imagen || "",
-          productDetails: {
-            ...(data.featureBenefit
-              ? { Feature_Benefit: data.featureBenefit }
-              : {}),
-          },
-        };
-        resolve({ success: true, data: result });
-      } catch (e) {
-        resolve({
-          success: false,
-          error: "No se pudo parsear la respuesta del RPA.",
-        });
-      }
-    });
-  });
+  try {
+    const res = await fetch(
+      `https://rpa-api-7j8o.onrender.com/api/rpa-salsify?productId=${productId}`
+    );
+    if (!res.ok) {
+      return { success: false, error: "Error al consultar la API externa." };
+    }
+    const data = await res.json();
+    const result: Product = {
+      nombreComercial: data.nombreComercial || "",
+      productName: data.nombre || productId || "Producto sin nombre",
+      productDescription: data.descripcion || "Información extraída de Salsify",
+      imageUrl: data.imagen || "",
+      productDetails: {
+        ...(data.featureBenefit
+          ? { Feature_Benefit: data.featureBenefit }
+          : {}),
+      },
+    };
+    return { success: true, data: result };
+  } catch (e) {
+    return {
+      success: false,
+      error: "No se pudo obtener la respuesta de la API externa.",
+    };
+  }
 }
