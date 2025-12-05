@@ -1,88 +1,133 @@
+// rpa-salsify.js
 const { chromium } = require("playwright");
 
-const SALSIFY_URL =
-  "https://app.salsify.com/catalogs/0ba92b3f-b927-4418-8de9-e177b867bb3e/products";
-
 async function buscarProducto(productId) {
+  const SALSIFY_URL =
+    "https://app.salsify.com/catalogs/0ba92b3f-b927-4418-8de9-e177b867bb3e/products";
+
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
 
-  // Ir directamente al producto (sin login)
-  await page.goto(`${SALSIFY_URL}/${productId}`);
-  await page.waitForLoadState("networkidle");
+  await page.goto(`${SALSIFY_URL}/${productId}`, { waitUntil: "networkidle" });
 
-  // Extraer nombre comercial del producto desde Labelling_Product_Name
+  // -----------------------------------------
+  // 🏷 Nombre comercial
+  // -----------------------------------------
   let nombreComercial = "";
   try {
     nombreComercial = await page.$eval(
-      'div[data-test-property="Labelling_Product_Name"] .product-property-value span._value-text_xztep4',
+      'div[data-test-property="Labelling_Product_Name"] .product-property-value span',
       (el) => el.textContent.trim()
     );
-  } catch (e) {
-    nombreComercial = "";
-  }
+  } catch {}
 
-  // Nombre del producto
+  // -----------------------------------------
+  // 🏷 Nombre principal
+  // -----------------------------------------
   let nombre = "";
   try {
-    await page.waitForSelector("a.active.ember-view", { timeout: 5000 });
     nombre = await page.$eval("a.active.ember-view", (el) =>
       el.textContent.trim()
     );
-  } catch (e) {
-    nombre = "";
-  }
+  } catch {}
 
-  // Imagen del producto
-  let imagen = "";
+  // -----------------------------------------
+  // 🖼 Imagen principal (inteligente + robusto)
+  // -----------------------------------------
+
+  let imagenHD = "";
   try {
-    await page.waitForSelector("#ember65.mfp-image img", { timeout: 5000 });
-    imagen = await page.$eval("#ember65.mfp-image img", (el) => el.src);
-  } catch (e) {
-    imagen = "";
-  }
+    imagenHD = await page.$eval(
+      ".product-profile-image .mfp-image a",
+      (el) => el.href
+    );
+  } catch {}
 
-  // Descripción
+  let imagenMiniatura = "";
+  try {
+    imagenMiniatura = await page.$eval(
+      ".product-profile-image .mfp-image img",
+      (el) => el.src
+    );
+  } catch {}
+
+  // Fallback #3: Imágenes en Back_Image y Other_Images
+  let imagenAsset = "";
+  try {
+    imagenAsset = await page.$eval(
+      ".product-asset-value--image-wrapper img",
+      (el) => el.src
+    );
+  } catch {}
+
+  // Fallback #4: Cualquier imagen del DOM
+  let imagenGlobal = "";
+  try {
+    const allImgs = await page.$$eval("img", (imgs) =>
+      imgs.map((i) => i.src).filter(Boolean)
+    );
+    imagenGlobal = allImgs[0] || "";
+  } catch {}
+
+  // Seleccionar la mejor imagen disponible
+  const imagenPrincipal =
+    imagenHD || imagenMiniatura || imagenAsset || imagenGlobal || "";
+
+  // -----------------------------------------
+  // 📝 Descripción
+  // -----------------------------------------
   let descripcion = "";
   try {
     descripcion = await page.$eval(
       'div[data-test-property="Brand_Marketing_Description"] .product-property-value span',
       (el) => el.textContent.trim()
     );
-  } catch (e) {
-    descripcion = "";
-  }
+  } catch {}
 
-  // Beneficio principal (Feature_Benefit)
+  // -----------------------------------------
+  // ⭐ Beneficio principal
+  // -----------------------------------------
   let featureBenefit = "";
   try {
     featureBenefit = await page.$eval(
       'div[data-test-property="Feature_Benefit"] .product-property-value span',
       (el) => el.textContent.trim()
     );
-  } catch (e) {
-    featureBenefit = "";
-  }
+  } catch {}
+
+  // -----------------------------------------
+  // 🖼 Todas las imágenes disponibles
+  // -----------------------------------------
+  let todasLasImagenes = [];
+  try {
+    todasLasImagenes = await page.$$eval("img", (imgs) =>
+      Array.from(new Set(imgs.map((i) => i.src))).filter(Boolean)
+    );
+  } catch {}
 
   await browser.close();
+
   return {
     nombreComercial,
     nombre,
-    imagen,
     descripcion,
     featureBenefit,
+    imagenMiniatura,
+    imagenHD,
+    imagenPrincipal,
+    todasLasImagenes,
+    imageUrl2:
+      Array.isArray(todasLasImagenes) && todasLasImagenes.length > 1
+        ? todasLasImagenes[1]
+        : "",
   };
 }
 
-// Ejemplo de uso desde terminal
+// Ejecutado directamente desde terminal
 if (require.main === module) {
   const productId = process.argv[2];
-  if (!productId) {
-    console.error("Debes pasar el productId como argumento");
-    process.exit(1);
-  }
   buscarProducto(productId).then((data) => {
-    console.log(JSON.stringify(data, null, 2));
+    process.stdout.write(JSON.stringify(data));
   });
 }
 

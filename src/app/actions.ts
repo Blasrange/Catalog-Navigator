@@ -6,15 +6,27 @@ export interface Product {
   productName: string;
   productDescription: string;
   imageUrl: string;
-  productDetails: Record<string, string>;
   nombreComercial: string;
+  productDetails: Record<string, string>;
+  allImages?: string[];
 }
 
 export type SearchResult =
   | { success: true; data: Product }
   | { success: false; error: string };
 
-// Ejecuta el RPA con Playwright para buscar el producto en Salsify
+// 🧹 Limpia stdout para extraer SOLO el JSON válido
+function extractJson(stdout: string): string {
+  const first = stdout.indexOf("{");
+  const last = stdout.lastIndexOf("}");
+
+  if (first === -1 || last === -1) {
+    throw new Error("No se encontró un objeto JSON válido en stdout");
+  }
+
+  return stdout.substring(first, last + 1);
+}
+
 export async function searchProduct(productId: string): Promise<SearchResult> {
   if (!productId) {
     return {
@@ -23,30 +35,116 @@ export async function searchProduct(productId: string): Promise<SearchResult> {
     };
   }
 
+  // Usar variable de entorno para la base de la API
+  const apiBaseUrl =
+    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:9002";
   try {
     const res = await fetch(
-      `https://rpa-api-7j8o.onrender.com/api/rpa-salsify?productId=${productId}`
+      `${apiBaseUrl}/api/product?code=${encodeURIComponent(productId)}`
     );
-    if (!res.ok) {
-      return { success: false, error: "Error al consultar la API externa." };
+    if (res.ok) {
+      const data = await res.json();
+      // Adaptar la respuesta al tipo Product si es necesario
+      return { success: true, data };
+    } else {
+      // Si el backend responde con error, intentar scraping directo como fallback
+      // (Solo si el backend no pudo encontrar el producto)
+      return await new Promise((resolve) => {
+        exec(`node ./rpa-salsify.js ${productId}`, (error, stdout) => {
+          if (error) {
+            resolve({
+              success: false,
+              error: "Error al ejecutar el RPA.",
+            });
+            return;
+          }
+
+          try {
+            // Extraer y parsear JSON
+            const cleaned = extractJson(stdout);
+            const data = JSON.parse(cleaned);
+
+            // Seleccionar la mejor imagen disponible
+            const imageUrl =
+              data.imagenPrincipal ||
+              data.imagenHD ||
+              data.imagenMiniatura ||
+              (data.todasLasImagenes?.length > 0
+                ? data.todasLasImagenes[0]
+                : "") ||
+              "";
+
+            const result: Product = {
+              nombreComercial: data.nombreComercial || "",
+              productName: data.nombre || productId,
+              productDescription: data.descripcion || "",
+              imageUrl,
+              productDetails: {
+                ...(data.featureBenefit
+                  ? { Feature_Benefit: data.featureBenefit }
+                  : {}),
+              },
+              allImages: data.todasLasImagenes || [],
+            };
+
+            resolve({ success: true, data: result });
+          } catch (e) {
+            resolve({
+              success: false,
+              error: "No se pudo parsear la respuesta del RPA.",
+            });
+          }
+        });
+      });
     }
-    const data = await res.json();
-    const result: Product = {
-      nombreComercial: data.nombreComercial || "",
-      productName: data.nombre || productId || "Producto sin nombre",
-      productDescription: data.descripcion || "Información extraída de Salsify",
-      imageUrl: data.imagen || "",
-      productDetails: {
-        ...(data.featureBenefit
-          ? { Feature_Benefit: data.featureBenefit }
-          : {}),
-      },
-    };
-    return { success: true, data: result };
-  } catch (e) {
-    return {
-      success: false,
-      error: "No se pudo obtener la respuesta de la API externa.",
-    };
+  } catch (err) {
+    // Si hay error de red o fetch, fallback al scraping directo
+    return await new Promise((resolve) => {
+      exec(`node ./rpa-salsify.js ${productId}`, (error, stdout) => {
+        if (error) {
+          resolve({
+            success: false,
+            error: "Error al ejecutar el RPA.",
+          });
+          return;
+        }
+
+        try {
+          // Extraer y parsear JSON
+          const cleaned = extractJson(stdout);
+          const data = JSON.parse(cleaned);
+
+          // Seleccionar la mejor imagen disponible
+          const imageUrl =
+            data.imagenPrincipal ||
+            data.imagenHD ||
+            data.imagenMiniatura ||
+            (data.todasLasImagenes?.length > 0
+              ? data.todasLasImagenes[0]
+              : "") ||
+            "";
+
+          const result: Product = {
+            nombreComercial: data.nombreComercial || "",
+            productName: data.nombre || productId,
+            productDescription: data.descripcion || "",
+            imageUrl,
+            productDetails: {
+              ...(data.featureBenefit
+                ? { Feature_Benefit: data.featureBenefit }
+                : {}),
+            },
+            allImages: data.todasLasImagenes || [],
+          };
+
+          resolve({ success: true, data: result });
+        } catch (e) {
+          resolve({
+            success: false,
+            error: "No se pudo parsear la respuesta del RPA.",
+          });
+        }
+      });
+    });
   }
 }

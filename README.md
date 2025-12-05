@@ -44,11 +44,13 @@ Aquí se describen los archivos y directorios más importantes de la aplicación
 Para poner en marcha la aplicación en un entorno de desarrollo, sigue estos pasos:
 
 1.  **Instalar Dependencias**: Abre una terminal en el directorio raíz del proyecto y ejecuta el siguiente comando para instalar todas las librerías necesarias:
+
     ```bash
     npm install
     ```
 
 2.  **Iniciar el Servidor de Desarrollo**: Una vez instaladas las dependencias, inicia la aplicación con el siguiente comando:
+
     ```bash
     npm run dev
     ```
@@ -64,6 +66,7 @@ Para que la aplicación muestre tus productos, sigue estos pasos:
 3.  El `valor` debe ser un objeto con la estructura definida por la interfaz `Product`, incluyendo `productName`, `productDescription`, `imageUrl` y un objeto `productDetails` con todos los atributos que quieras mostrar.
 
 ### Ejemplo de un producto:
+
 ```typescript
 "7702521104191": {
   productName: "Dog Chow Adultos Medianos y Grandes",
@@ -76,3 +79,23 @@ Para que la aplicación muestre tus productos, sigue estos pasos:
   }
 }
 ```
+
+<!-- Listo! Ahora el script update-catalog.js:
+
+Actualiza la información de cada producto usando el scraping.
+Si encuentra un archivo skus.csv (con columnas productId,SKU), también actualiza el campo SKU con el valor original del Excel.
+Solo necesitas:
+
+Guardar tu Excel como skus.csv en la raíz del proyecto (junto a update-catalog.js).
+Ejecutar: node update-catalog.js
+Así tendrás el catálogo actualizado tanto con los datos de Salsify como con los SKUs originales de tu Excel. ¿Necesitas el formato exacto del CSV o alguna otra ayuda? -->
+
+<!-- npm install csv-parse
+node update-catalog.js -->
+
+
+<!-- Listo! El script ahora lee directamente el archivo productos.xlsx (Excel) en la raíz del proyecto.
+
+Solo coloca tu archivo productos.xlsx con las columnas ean, sku, productId.
+Ejecuta el script con: npm install xlsx
+node add-skus-to-catalog.js -->
